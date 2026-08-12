@@ -11,6 +11,7 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  "aria-label": label,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root>) {
   const _values = React.useMemo(
@@ -44,6 +45,16 @@ function Slider({
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
+          /*
+           * The label belongs on the *thumb*, which is where Radix puts
+           * `role="slider"`. On the Root it names a group nobody focuses, and
+           * the control a screen reader actually lands on is left unnamed —
+           * announced as "slider, 1" with no clue what it adjusts.
+           *
+           * Numbered only when there is more than one, so the common case does
+           * not read as "Zoom 1" for a single-thumb control.
+           */
+          aria-label={label && _values.length > 1 ? `${label} ${index + 1}` : label}
           // A square yellow knob with the same 2px rule, sitting on its own
           // offset shadow — the track is a rail and this is a block on it.
           className="border-brand-ink bg-brand-yellow shadow-brutal-sm relative block size-5 shrink-0 border-2 transition-shadow select-none after:absolute after:-inset-2 hover:shadow-none active:shadow-none disabled:pointer-events-none disabled:opacity-50"

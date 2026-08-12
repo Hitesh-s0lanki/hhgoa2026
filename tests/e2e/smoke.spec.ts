@@ -44,7 +44,7 @@ test("the builder class is derived from the role and rerolls", async ({ page }) 
   const title = page.getByRole("textbox", { name: "Builder class" });
   await expect(title).toHaveValue("BUILDER");
 
-  await page.getByLabel("Role").fill("ML Engineer");
+  await page.getByRole("textbox", { name: "Role" }).fill("ML Engineer");
   await expect(title).toHaveValue(/AI|MODEL|NEURAL/);
 
   const derived = await title.inputValue();
@@ -53,7 +53,7 @@ test("the builder class is derived from the role and rerolls", async ({ page }) 
 
   // Typing takes over: the table must not overwrite a manual title.
   await title.fill("PROFESSIONAL YAK SHAVER");
-  await page.getByLabel("Role").fill("Founder");
+  await page.getByRole("textbox", { name: "Role" }).fill("Founder");
   await expect(title).toHaveValue("PROFESSIONAL YAK SHAVER");
 });
 
@@ -63,22 +63,32 @@ test("generate opens the pass dialog with the values that were typed", async ({ 
   // The fields are controlled, so a fill that lands before hydration sets the
   // DOM value and nothing else. Waiting on a derived value proves React is
   // driving the form before the rest of the test types into it.
-  await page.getByLabel("Role").fill("ML Engineer");
+  await page.getByRole("textbox", { name: "Role" }).fill("ML Engineer");
   await expect(page.getByRole("textbox", { name: "Builder class" })).not.toHaveValue("BUILDER");
 
-  await page.getByLabel("Your name").fill("Hitesh Solanki");
+  await page.getByRole("textbox", { name: "Your name" }).fill("Hitesh Solanki");
   await page.getByRole("button", { name: /generate pass/i }).click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  // The details list under the card, which is where a typo is actually legible.
+
+  /*
+   * Asserted on the card itself, because the card is now the only thing in the
+   * dialog — the details list that used to spell the fields out underneath was
+   * removed.
+   *
+   * Role is deliberately not checked: it is never printed on the pass. It only
+   * *derives* the builder class, so the class appearing is the evidence that
+   * the role was read. Checking for "ML Engineer" would be checking for text
+   * the product does not claim to show.
+   */
   await expect(dialog.getByText("Hitesh Solanki").last()).toBeVisible();
-  await expect(dialog.getByText("ML Engineer").last()).toBeVisible();
+  await expect(dialog.getByText(/MODEL|NEURAL|AI|WRANGLER/).last()).toBeVisible();
 
   // Closing must return you to the form with everything still filled in.
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(page.getByLabel("Your name")).toHaveValue("Hitesh Solanki");
+  await expect(page.getByRole("textbox", { name: "Your name" })).toHaveValue("Hitesh Solanki");
 });
 
 test("about page is reachable from the nav and credits the builder", async ({ page }) => {

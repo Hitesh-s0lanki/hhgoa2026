@@ -34,11 +34,11 @@ async function fillPass(page: import("@playwright/test").Page) {
   await page.goto("/#generate");
 
   // Proves hydration has taken over the controlled inputs before we type.
-  await page.getByLabel("Role").fill("ML Engineer");
+  await page.getByRole("textbox", { name: "Role" }).fill("ML Engineer");
   await expect(page.getByRole("textbox", { name: "Builder class" })).not.toHaveValue("BUILDER");
 
-  await page.getByLabel("Your name").fill("Hitesh Solanki");
-  await page.getByLabel("Stack").fill("Next.js · TS · AWS");
+  await page.getByRole("textbox", { name: "Your name" }).fill("Hitesh Solanki");
+  await page.getByRole("textbox", { name: "Stack" }).fill("Next.js · TS · AWS");
 
   await page.setInputFiles('input[type="file"]', PHOTO);
   await expect(page.getByText(PHOTO.name)).toBeVisible();

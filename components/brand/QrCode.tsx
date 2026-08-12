@@ -25,13 +25,10 @@ import { cn } from "@/lib/utils";
  */
 export function QrCode({
   value,
-  title,
   className,
 }: {
   /** The URL to encode. Kept short — every character can cost a version. */
   value: string;
-  /** Read out instead of the graphic. The code is decoration to a screen reader. */
-  title?: string;
   className?: string;
 }) {
   const { size, path } = qrSymbol(value);
@@ -51,7 +48,13 @@ export function QrCode({
         shapeRendering="crispEdges"
         className="block h-auto w-full"
         role="img"
-        aria-label={title ?? `QR code linking to ${value}`}
+        // The destination, read out. This is the one thing on the card that
+        // exists nowhere else in the text, and it is deliberately not the
+        // builder's name: the accessible name of a graphic that appears on
+        // every copy of the card should not collide with the form field
+        // beside it, and a screen reader cannot scan a code anyway — the URL
+        // is the useful part.
+        aria-label={`QR code linking to ${value}`}
       >
         <rect width={size} height={size} fill="var(--color-brand-cream)" />
         <path d={path} fill="var(--color-brand-ink)" />

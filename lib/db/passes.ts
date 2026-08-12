@@ -38,14 +38,27 @@ export async function upsertPass(row: NewPass): Promise<Pass | null> {
   const db = getDb();
   if (!db) return null;
 
-  const { id: _id, sessionId, createdAt: _createdAt, ...fields } = row;
+  // Listed rather than spread: `id` is the conflict target and `createdAt` is
+  // when the pass was first made, and neither is something a re-post rewrites.
   const [saved] = await db
     .insert(passes)
     .values(row)
     .onConflictDoUpdate({
       target: passes.id,
-      set: fields,
-      where: eq(passes.sessionId, sessionId),
+      set: {
+        name: row.name,
+        role: row.role,
+        stack: row.stack,
+        title: row.title,
+        passNumber: row.passNumber,
+        photoUrl: row.photoUrl,
+        photoKey: row.photoKey,
+        cardUrl: row.cardUrl,
+        cardKey: row.cardKey,
+        ogUrl: row.ogUrl,
+        ogKey: row.ogKey,
+      },
+      where: eq(passes.sessionId, row.sessionId),
     })
     .returning();
 

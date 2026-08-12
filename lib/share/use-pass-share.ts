@@ -101,17 +101,16 @@ export function usePassShare({
   const cache = useRef<{ key: string; work: Promise<PassImages> } | null>(null);
 
   /**
-   * The signature is read through a ref rather than closed over, because
-   * `claimShareId()` changes it *during* `share()` — it writes the pass id into
-   * the capture surface, which changes what the card draws. A captured value
-   * would be the pre-claim one, and the render cache would hand back the card
-   * whose QR code still points at the generator.
+   * The claimed pass id, which is part of what the card draws (it is the URL
+   * inside the QR code) and therefore part of the cache key — but which is
+   * claimed *during* `share()`, after this render. Keeping it beside the cache
+   * rather than in the signature is what lets `share()` invalidate the
+   * pre-render it is about to outgrow without re-entering React first.
    */
-  const signatureRef = useRef(signature);
-  signatureRef.current = signature;
+  const claimed = useRef<string | null>(null);
 
   const images = useCallback((): Promise<PassImages> => {
-    const key = signatureRef.current;
+    const key = `${signature}|${claimed.current ?? ""}`;
     if (cache.current?.key !== key) {
       const work = renderPassImages(nodes(), fields.name);
       cache.current = { key, work };
@@ -122,7 +121,7 @@ export function usePassShare({
       });
     }
     return cache.current.work;
-  }, [fields.name, nodes]);
+  }, [fields.name, nodes, signature]);
 
   /** Start the render early and ignore the outcome. Safe to call repeatedly. */
   const prerender = useCallback(() => {
@@ -196,8 +195,10 @@ export function usePassShare({
        * of the code being right, and it is one capture.
        */
       const id = claimShareId();
+      claimed.current = id;
 
-      // Usually already resolved: the dialog opening started this.
+      // Usually already resolved: the dialog opening started this — though not
+      // on the first share, where claiming the id above just invalidated it.
       const rendered = await images();
 
       setStatus("uploading");

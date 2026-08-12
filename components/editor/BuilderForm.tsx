@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,40 @@ export function BuilderForm({
   onTitleChange: (value: string) => void;
   onReroll: () => void;
 }) {
+  /**
+   * Adopt anything typed before hydration.
+   *
+   * These inputs are controlled, and the page is server-rendered — so between
+   * first paint and hydration the fields are real, focusable and typeable while
+   * nothing is listening. React does not clobber a user-entered DOM value when
+   * it hydrates, so the field keeps showing the text and state stays empty: the
+   * card silently exports "Your name" over a filled-in form. It is not a
+   * theoretical window either — it is why every WebKit run of the e2e suite
+   * used to fail, and Safari on a phone is the slowest hydration we have.
+   *
+   * So on mount the DOM is read back and any difference is pushed into state,
+   * making the browser's version the truth exactly once.
+   */
+  const adopted = useRef(false);
+  const inputs = useRef(new Map<FieldName | "title", HTMLInputElement | null>());
+
+  useEffect(() => {
+    if (adopted.current) return;
+    adopted.current = true;
+
+    for (const field of FIELDS) {
+      const value = inputs.current.get(field.id)?.value ?? "";
+      if (value && value !== values[field.id]) onChange(field.id, value);
+    }
+
+    // The title is derived rather than stored, so anything in it that is not
+    // what the table would have produced is a deliberate override.
+    const typedTitle = inputs.current.get("title")?.value ?? "";
+    if (typedTitle && typedTitle !== title) onTitleChange(typedTitle);
+    // Mount only: re-running would fight the user for control of the field.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-4">
       {FIELDS.map((field) => (
@@ -59,6 +94,9 @@ export function BuilderForm({
           </div>
           <Input
             id={field.id}
+            ref={(node) => {
+              inputs.current.set(field.id, node);
+            }}
             value={values[field.id]}
             maxLength={FIELD_LIMITS[field.id]}
             placeholder={field.placeholder}
@@ -78,6 +116,9 @@ export function BuilderForm({
         <div className="flex gap-4">
           <Input
             id="title"
+            ref={(node) => {
+              inputs.current.set("title", node);
+            }}
             value={title}
             maxLength={FIELD_LIMITS.title}
             autoComplete="off"

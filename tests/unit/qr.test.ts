@@ -1,8 +1,8 @@
 import jsQR from "jsqr";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { qrSymbol } from "@/lib/share/qr-symbol";
 import { passQrTarget } from "@/lib/share/qr-target";
-import { EVENT, SITE_URL, absoluteUrl, isPublicSiteUrl } from "@/lib/site";
+import { EVENT, absoluteUrl, isPublicSiteUrl } from "@/lib/site";
 
 /**
  * The point of this file: "it looks like a QR code" is not a test.
@@ -65,10 +65,11 @@ describe("qrSymbol", () => {
 
   it("keeps the four-module quiet zone clear on every side", () => {
     const { size, path } = qrSymbol(EVENT.site);
-    const dark = [...path.matchAll(/M(\d+) (\d+)h1v1h-1z/g)].map(([, x, y]) => [+x, +y]);
+    const dark = [...path.matchAll(/M(\d+) (\d+)h1v1h-1z/g)];
+    expect(dark.length).toBeGreaterThan(0);
 
-    for (const [x, y] of dark) {
-      for (const n of [x, y]) {
+    for (const [, x, y] of dark) {
+      for (const n of [Number(x), Number(y)]) {
         expect(n).toBeGreaterThanOrEqual(4);
         expect(n).toBeLessThan(size - 4);
       }
@@ -87,12 +88,27 @@ describe("qrSymbol", () => {
   });
 });
 
-describe("passQrTarget", () => {
-  const public_ = isPublicSiteUrl(SITE_URL);
+/**
+ * `SITE_URL` is read once at module scope, so the deployed behaviour has to be
+ * reached by re-importing under a stubbed env — the test suite itself runs with
+ * no `NEXT_PUBLIC_SITE_URL`, which is precisely the localhost case.
+ */
+async function underOrigin(origin: string | undefined) {
+  vi.resetModules();
+  if (origin === undefined) vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+  else vi.stubEnv("NEXT_PUBLIC_SITE_URL", origin);
+  return import("@/lib/share/qr-target");
+}
 
-  it("points at the pass's own page once it has an id", () => {
-    const target = passQrTarget("k3f9x2m7qp1a");
-    expect(target).toBe(public_ ? absoluteUrl("/share/k3f9x2m7qp1a") : EVENT.site);
+describe("passQrTarget", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("points at the pass's own page once it has an id", async () => {
+    const { passQrTarget: target } = await underOrigin("https://hhgoa.app");
+    expect(target("k3f9x2m7qp1a")).toBe("https://hhgoa.app/share/k3f9x2m7qp1a");
   });
 
   /*
@@ -100,16 +116,28 @@ describe("passQrTarget", () => {
    * posted has no /share page, so encoding one would put a code that scans to
    * a 404 onto an image the person already has.
    */
-  it("falls back to the generator when there is no pass id yet", () => {
+  it("falls back to the generator when there is no pass id yet", async () => {
+    const { passQrTarget: target } = await underOrigin("https://hhgoa.app");
     for (const id of [null, undefined, ""]) {
-      expect(passQrTarget(id)).toBe(public_ ? absoluteUrl("/") : EVENT.site);
+      expect(target(id)).toBe("https://hhgoa.app/");
     }
   });
 
+  it("uses the event's site when the deployment has no public origin", async () => {
+    const { passQrTarget: target } = await underOrigin("http://localhost:3002");
+    expect(target("k3f9x2m7qp1a")).toBe(EVENT.site);
+    expect(target(null)).toBe(EVENT.site);
+  });
+
   it("never encodes an origin only the serving machine can resolve", () => {
-    const targets = [passQrTarget(null), passQrTarget("k3f9x2m7qp1a")];
-    for (const target of targets) {
+    for (const target of [passQrTarget(null), passQrTarget("k3f9x2m7qp1a")]) {
       expect(isPublicSiteUrl(target), target).toBe(true);
     }
+  });
+
+  it("encodes a URL that survives the round trip through the symbol", async () => {
+    const { passQrTarget: target } = await underOrigin("https://hhgoa.app");
+    const url = target("k3f9x2m7qp1a");
+    expect(decode(url)).toBe(url);
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { DottedRule, Lotus, Sparkle, SubjectSilhouette, Waves } from "@/components/brand/ornaments";
 import { QrCode } from "@/components/brand/QrCode";
+import { type Crop, cropStyle } from "@/lib/image/crop";
 import { passQrTarget } from "@/lib/share/qr-target";
 import { EVENT } from "@/lib/site";
 import { cn } from "@/lib/utils";
@@ -163,13 +164,21 @@ function Barcode({ className }: { className?: string }) {
 }
 
 /** The arched photo window, dotted ring and all — the hole the face goes in. */
-function ArchWindow({ photoUrl }: { photoUrl?: string | null }) {
+function ArchWindow({ photoUrl, crop }: { photoUrl?: string | null; crop?: Crop }) {
   return (
     <div className="arch border-brand-yellow bg-brand-green/50 relative flex aspect-3/4 w-full items-center justify-center overflow-hidden border-2">
       {photoUrl ? (
         // A local object URL — there is nothing for next/image to optimize.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={photoUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img
+          src={photoUrl}
+          alt=""
+          // `object-cover` frames it; the transform is the user's own
+          // adjustment on top. Both are plain CSS, so the rasterizer reproduces
+          // the crop exactly rather than re-deriving it. See [[cropStyle]].
+          style={cropStyle(crop)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       ) : (
         <>
           <SubjectSilhouette className="text-brand-cream/12 size-14 -translate-y-2" />
@@ -217,11 +226,14 @@ function FrontField({
 export function PassCardFront({
   value,
   photoUrl,
+  crop,
   shareId,
   className,
 }: {
   value: PassFields;
   photoUrl?: string | null;
+  /** How the photo is framed inside the arch. Undefined is the plain cover fit. */
+  crop?: Crop;
   /**
    * The id this pass will be published under, when it has one. The QR encodes
    * `/share/<id>` — the page with the card big and a Download button on it —
@@ -239,7 +251,7 @@ export function PassCardFront({
 
       <div className="mt-2 flex items-start gap-3 px-4">
         <div className="w-[42%] shrink-0">
-          <ArchWindow photoUrl={photoUrl} />
+          <ArchWindow photoUrl={photoUrl} crop={crop} />
         </div>
 
         <div className="min-w-0 flex-1 pt-0.5 text-center">
@@ -286,11 +298,7 @@ export function PassCardFront({
             the point where a phone camera stops hunting. The export is 3×, so
             the downloaded PNG has a very comfortable code. */}
         <div className="w-23 shrink-0 pt-1.5">
-          <QrCode
-            value={passQrTarget(shareId)}
-            title={`Scan to open ${value.name}'s pass`}
-            className="w-full"
-          />
+          <QrCode value={passQrTarget(shareId)} className="w-full" />
           <span className="mt-1.5 flex items-center justify-center gap-1.5">
             <Sparkle className="text-brand-pink w-2 shrink-0" />
             <Waves className="text-brand-cream/25 w-8" />
@@ -410,7 +418,7 @@ export function PassCardBack({ className }: { className?: string }) {
             already carries the personal link, and a badge's reverse is where
             you look for "what is this thing". `hhgoa.com` is 18 characters, so
             it fits a smaller symbol and stays readable at 72px. */}
-        <QrCode value={EVENT.site} title={`Scan to open ${EVENT.name}`} className="w-18 shrink-0" />
+        <QrCode value={EVENT.site} className="w-18 shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5">
             <Fingerprint className="text-brand-yellow size-3.5 shrink-0" aria-hidden="true" />

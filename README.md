@@ -116,8 +116,10 @@ The specification was written against Next 15 / Tailwind 3. This scaffold is on 
 current latest instead:
 
 - **Next 16 + Turbopack.** Turbopack is the default bundler in Next 16 and webpack is no
-  longer the supported path, so the "skip Turbopack" note in T-001 does not apply. If the
-  HEIC or face-detector WASM chunks misbehave later, that is the point to revisit.
+  longer the supported path, so the "skip Turbopack" note in T-001 does not apply. The HEIC
+  decoder needs `heic-to/next` rather than the package's default entry point for exactly
+  this reason: that build inlines its worker instead of resolving it from a URL, which is
+  what Turbopack requires.
 - **Tailwind 4.** CSS-first configuration — there is no `tailwind.config.ts`. Brand tokens
   go in `app/globals.css` under `@theme` (T-002), not in a JS config file.
 - **`next lint` is removed.** `npm run lint` calls `eslint` directly.
@@ -128,6 +130,7 @@ current latest instead:
 proxy.ts     mints the session cookie on every request (Next 16's middleware)
 app/         routes — landing, /share/[id], /api/pass, /api/uploadthing
 components/  React only; no image math (doc 09, rule 2)
+lib/image/   ingest + framing — sniff, decode, orient, downscale, crop maths
 lib/         db, render, share, upload, brand — render/ never imports React
 drizzle/     generated SQL migrations (npm run db:generate)
 public/      branding assets + self-hosted fonts
@@ -142,6 +145,57 @@ reach the client — the browser only ever receives a presigned URL. The app bui
 with both absent: sharing degrades with a stated reason, and **Download** is unaffected
 because it touches no server at all.
 
+## The photo pipeline
+
+`lib/image/` is the whole answer to "handles real photos". Every uploaded file goes through
+`ingestPhoto` before anything else sees it:
+
+1. **Sniff** (`sniff.ts`). The container's magic bytes decide what a file is, not
+   `File.type` — iOS reports an empty MIME type for a HEIC picked through Files, and an
+   executable renamed `portrait.jpg` claims to be an image. Only JPEG, PNG, WebP and HEIF
+   get through; an MP4 in the same `ftyp` container does not.
+2. **Decode.** Tried natively first, which is instant and covers HEIC on Safari. Only when
+   that _fails_ is `heic-to` imported — a 3 MB WASM chunk, dynamically imported, so an
+   iPhone never downloads it and a desktop Chrome user gets a working card instead of a
+   broken image. (`heic-to` wraps libheif and is therefore LGPL-3.0 — the only
+   non-permissive dependency here. It is loaded as a separate chunk and never modified.)
+3. **Orient.** Loading through an `<img>` applies EXIF rotation via the browser's own
+   `image-orientation: from-image` default, which is both older and more widely supported
+   than `createImageBitmap`'s equivalent option. The canvas step then bakes it in, so
+   nothing downstream can re-apply it.
+4. **Downscale** to a 1600 px long edge. This is the single biggest speed win in the app:
+   the exporter inlines the photo as a base64 data URI on every capture, three times per
+   share, and a 12 MP original turns that into megabytes of string per pass.
+
+Framing is `lib/image/crop.ts`: a `{ zoom, x, y }` where the offsets are **fractions of the
+photo window**, not pixels. The same crop is drawn at four sizes — the 96 px editor, the
+128 px card window, that window at 3× in the export, and again at 1.18× inside the OG image
+— and a pixel offset would mean four different crops.
+
 ## Deployment
 
-Vercel, zero-config. Deployment URL: _to be recorded on first deploy (T-032)._
+Vercel, zero-config. `npm run build` must pass, which it does with no environment at all.
+
+**Set all three variables on the deployment**, not just the two secrets:
+
+| Variable               | Value                                                |
+| ---------------------- | ---------------------------------------------------- |
+| `NEXT_PUBLIC_SITE_URL` | the deployment's own public origin, no trailing `/`  |
+| `UPLOADTHING_TOKEN`    | from the UploadThing dashboard → API Keys            |
+| `DATABASE_URL`         | Neon's **pooled** connection string (ends `-pooler`) |
+
+`NEXT_PUBLIC_SITE_URL` is inlined at build time, so setting it after the fact needs a
+redeploy, not a restart. Then run `npm run db:migrate` against the same database once.
+
+Release check, in order — each step fails loudly rather than silently:
+
+1. `npm run check && npx playwright test` — 89 unit, 78 e2e across Chromium, WebKit and
+   iPhone 14.
+2. Open the deployed URL on a phone. Upload a HEIC straight from the camera roll.
+3. Drag the photo in the arch; confirm the card follows.
+4. **Download** — a `.png` lands in the camera roll.
+5. **Post on X** — the composer opens pre-filled with `#FrameInGoa`. Post it, and confirm
+   the tweet shows the card as a large image. A bare link means `NEXT_PUBLIC_SITE_URL` is
+   wrong; the app also logs that case on the server.
+
+Deployment URL: _record it here after the first deploy._

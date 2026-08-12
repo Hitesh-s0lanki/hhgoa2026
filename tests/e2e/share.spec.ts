@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type BrowserContext, type Route } from "@playwright/test";
+import { passIdPattern } from "../../lib/share/pass-id";
+import { passQrTarget } from "../../lib/share/qr-target";
 import { createPassSchema } from "../../lib/share/schema";
 
 /**
@@ -94,10 +96,10 @@ test("posting to X renders, uploads, saves and opens the intent", async ({ page,
   const captured = await stubUploads(context);
 
   await page.goto("/#generate");
-  await page.getByLabel("Role").fill("ML Engineer");
+  await page.getByRole("textbox", { name: "Role" }).fill("ML Engineer");
   await expect(page.getByRole("textbox", { name: "Builder class" })).not.toHaveValue("BUILDER");
-  await page.getByLabel("Your name").fill("Hitesh Solanki");
-  await page.getByLabel("Stack").fill("Next.js · TS · AWS");
+  await page.getByRole("textbox", { name: "Your name" }).fill("Hitesh Solanki");
+  await page.getByRole("textbox", { name: "Stack" }).fill("Next.js · TS · AWS");
   await page.setInputFiles('input[type="file"]', PHOTO);
   await expect(page.getByText(PHOTO.name)).toBeVisible();
 
@@ -148,6 +150,25 @@ test("posting to X renders, uploads, saves and opens the intent", async ({ page,
     title: "MODEL WRANGLER",
     passNumber: "HHG-2026-7922",
   });
+
+  /*
+   * The QR code on the card has to point at the pass this request just created,
+   * which means the id was minted in the browser and painted onto the capture
+   * surface *before* the card was rasterised. The capture surface is the DOM
+   * that was photographed, so its code is the one inside the uploaded PNG.
+   *
+   * `passQrTarget` is asserted through rather than hard-coded because the
+   * answer depends on the origin: on this suite's localhost it is the event
+   * site (a code that scanned to `localhost` would be dead on the only device
+   * anyone scans with), and on a deployed origin it is `/share/<id>`. Both
+   * branches are unit-tested; this pins the wiring that feeds it.
+   */
+  const id = (captured.body as { id: string }).id;
+  expect(id).toMatch(passIdPattern);
+  await expect(page.locator('[inert] svg[role="img"]').first()).toHaveAttribute(
+    "aria-label",
+    `QR code linking to ${passQrTarget(id)}`,
+  );
 
   // A composed post, not a bare link: the caption and tags are pre-filled for
   // the user to edit before posting.
@@ -210,7 +231,7 @@ test("a failed save leaves the editor usable and says why", async ({ page, conte
   );
 
   await page.goto("/#generate");
-  await page.getByLabel("Your name").fill("Hitesh Solanki");
+  await page.getByRole("textbox", { name: "Your name" }).fill("Hitesh Solanki");
   await page.getByRole("button", { name: /generate pass/i }).click();
 
   const dialog = page.getByRole("dialog");

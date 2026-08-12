@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { Crop } from "@/lib/image/crop";
 import type { usePassShare } from "@/lib/share/use-pass-share";
 
 /**
@@ -32,6 +33,7 @@ export function PassDialog({
   onOpenChange,
   fields,
   photoUrl,
+  crop,
   shareId,
   share,
   canExport,
@@ -40,6 +42,8 @@ export function PassDialog({
   onOpenChange: (open: boolean) => void;
   fields: PassFields;
   photoUrl?: string | null;
+  /** So the dialog frames the photo exactly as the export will. */
+  crop?: Crop;
   /** So the dialog shows the same QR code the export will carry. */
   shareId?: string | null;
   share: ReturnType<typeof usePassShare>;
@@ -57,7 +61,7 @@ export function PassDialog({
         </DialogHeader>
 
         <div className="mt-6 flex justify-center">
-          <PassPreview fields={fields} photoUrl={photoUrl} shareId={shareId} />
+          <PassPreview fields={fields} photoUrl={photoUrl} crop={crop} shareId={shareId} />
         </div>
 
         <DialogFooter>

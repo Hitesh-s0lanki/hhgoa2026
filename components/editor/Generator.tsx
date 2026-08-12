@@ -13,6 +13,8 @@ import { Reveal } from "@/components/site/Reveal";
 import { Button } from "@/components/ui/button";
 import { UploadZone } from "@/components/uploader/UploadZone";
 import { deriveTitle } from "@/lib/brand/titles";
+import { type Crop, DEFAULT_CROP, cropKey } from "@/lib/image/crop";
+import { type Photo, PhotoError, ingestPhoto } from "@/lib/image/ingest";
 import { warmRasterizer } from "@/lib/render/rasterize";
 import { newPassId } from "@/lib/share/pass-id";
 import { usePassShare } from "@/lib/share/use-pass-share";
@@ -37,10 +39,15 @@ import { type Uploaded, uploadPhoto, warmUploader } from "@/lib/upload/client";
  * reason the download and the post feel instant rather than staged.
  */
 
-type Photo = { file: File; url: string };
+/** Refused before anything is decoded — a ceiling on work, not on quality. */
+const MAX_BYTES = 25 * 1024 * 1024;
 
 export function Generator() {
   const [photo, setPhoto] = useState<Photo | null>(null);
+  const [reading, setReading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  /** How the photo sits in the arch. Reset with every new photo, never carried. */
+  const [crop, setCrop] = useState<Crop>(DEFAULT_CROP);
   const [values, setValues] = useState<Record<FieldName, string>>({
     name: "",
     role: "",
@@ -84,12 +91,61 @@ export function Generator() {
     return () => URL.revokeObjectURL(photo.url);
   }, [photo]);
 
-  const onFile = useCallback((file: File) => {
-    setPhoto({ file, url: URL.createObjectURL(file) });
+  /**
+   * Which pick is current. Ingest is asynchronous — a HEIC decode is seconds of
+   * WASM — so someone who picks the wrong photo and immediately replaces it has
+   * two runs in flight. Without this the slower one wins and the card shows the
+   * photo they just rejected.
+   */
+  const pick = useRef(0);
 
+  const onFile = useCallback(async (file: File) => {
+    const token = ++pick.current;
+    setPhotoError(null);
+
+    if (file.size > MAX_BYTES) {
+      setReading(false);
+      setPhotoError("That file's too big — 25 MB is the ceiling.");
+      return;
+    }
+
+    setReading(true);
+
+    let next: Photo;
+    try {
+      next = await ingestPhoto(file);
+    } catch (cause) {
+      if (token !== pick.current) return;
+      console.warn("[photo] ingest failed", cause);
+      // The previous photo, if there was one, stays on the card: a rejected
+      // replacement should not also destroy the pass someone already had.
+      setReading(false);
+      setPhotoError(
+        cause instanceof PhotoError ? cause.message : "That photo could not be read. Try another.",
+      );
+      return;
+    }
+
+    // A newer pick landed first. Drop this one — including its object URL,
+    // which nothing will ever render and the cleanup effect will never see.
+    if (token !== pick.current) {
+      URL.revokeObjectURL(next.url);
+      return;
+    }
+
+    setPhoto(next);
+    setReading(false);
+    // A fresh photo has fresh framing; carrying a 3× zoom from the last one
+    // would open on a crop of somebody else's face.
+    setCrop(DEFAULT_CROP);
+
+    // The normalized file, not the original: it is the one that has been
+    // decoded, rotated upright and cut to a sane size, so the stored copy
+    // matches the pixels on the card and the upload is a fraction of the bytes.
+    //
     // Never rejects: a failed photo upload must not surface as an error on a
     // path the user has not asked for yet, and the share reads it as "no photo".
-    photoUpload.current = uploadPhoto(file).catch((cause) => {
+    photoUpload.current = uploadPhoto(next.file).catch((cause) => {
       console.warn("[pass] photo upload failed", cause);
       return null;
     });
@@ -111,7 +167,7 @@ export function Generator() {
    * the share id belongs in it, because it is drawn: it is the URL encoded in
    * the QR code.
    */
-  const signature = `${drawn.name}|${drawn.role}|${drawn.stack}|${drawn.title}|${photo?.url ?? ""}|${shareId ?? ""}`;
+  const signature = `${drawn.name}|${drawn.role}|${drawn.stack}|${drawn.title}|${photo?.url ?? ""}|${cropKey(crop)}|${shareId ?? ""}`;
 
   /**
    * `flushSync` is doing real work here, not being defensive. The share reads
@@ -175,7 +231,14 @@ export function Generator() {
           {/* One panel, one black rule around the whole job — photo and fields
               are the same decision and now look like it. */}
           <div className="border-brand-ink bg-brand-green shadow-brutal space-y-5 border-2 p-4 sm:p-5">
-            <UploadZone photoUrl={photo?.url} fileName={photo?.file.name} onFile={onFile} />
+            <UploadZone
+              photo={photo}
+              busy={reading}
+              error={photoError}
+              crop={crop}
+              onFile={onFile}
+              onCropChange={setCrop}
+            />
 
             <BuilderForm
               values={values}
@@ -228,7 +291,7 @@ export function Generator() {
           <h3 className="label-caps text-brand-cream/50 mb-3 text-center text-[10px]">
             Live preview
           </h3>
-          <PassPreview photoUrl={photo?.url} fields={fields} shareId={shareId} />
+          <PassPreview photoUrl={photo?.url} crop={crop} fields={fields} shareId={shareId} />
         </Reveal>
       </div>
 
@@ -239,6 +302,7 @@ export function Generator() {
         <CaptureSurface
           fields={drawn}
           photoUrl={photo?.url}
+          crop={crop}
           shareId={shareId}
           sheetRef={sheetRef}
           ogRef={ogRef}
@@ -250,6 +314,7 @@ export function Generator() {
         onOpenChange={setShowPass}
         fields={fields}
         photoUrl={photo?.url}
+        crop={crop}
         shareId={shareId}
         share={share}
         canExport={Boolean(fields.name.trim())}

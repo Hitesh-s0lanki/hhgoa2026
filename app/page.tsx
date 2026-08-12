@@ -1,4 +1,5 @@
 import { Generator } from "@/components/editor/Generator";
+import { PassHistory } from "@/components/editor/PassHistory";
 import { Hero } from "@/components/marketing/Hero";
 import { Marquee } from "@/components/site/Marquee";
 import { EVENT, SHARE_HASHTAG } from "@/lib/site";
@@ -28,6 +29,17 @@ export default function Home() {
       <Hero />
       <Marquee items={TICKER} className="mt-10 md:mt-4" />
       <Generator />
+      {/*
+       * Below the tool, not above it: someone arriving to make a pass should
+       * meet the form, and someone coming back for a link they already have
+       * knows to scroll. It renders nothing at all until this browser's session
+       * actually has a pass, so for a first-time visitor the page is unchanged.
+       *
+       * A client island on purpose — see the note in PassHistory. Reading the
+       * session cookie in a Server Component here would make this whole page
+       * dynamic and cost every visitor the CDN cache.
+       */}
+      <PassHistory />
     </main>
   );
 }

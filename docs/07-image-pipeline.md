@@ -7,6 +7,18 @@ The core engineering document. Everything here is client-side.
            T-006        T-007/8    T-008         T-010/11/12  T-013/14/15/16   T-019
 ```
 
+> **As built.** Stages 1–3 are `lib/image/sniff.ts` + `lib/image/ingest.ts`, and match this
+> document in substance — magic-byte validation, a native-first decode with a lazy WASM
+> fallback, EXIF applied by the browser, a downscale to a 1600 px long edge. Two things
+> differ, deliberately:
+>
+> - **Fit** is `lib/image/crop.ts` and is fractional rather than pixel geometry, because the
+>   same crop is drawn at four sizes. There is no face detection (T-011 was cut); the manual
+>   pan/zoom control covers it.
+> - **Composite** never happens on a canvas. `lib/render/rasterize.ts` photographs the card's
+>   own DOM, so the layout below is CSS in `PassCard.tsx` rather than draw calls. See
+>   [TASKLIST — where the plan changed](TASKLIST.md#where-the-plan-changed).
+
 ---
 
 ## Stage 1 · Validate

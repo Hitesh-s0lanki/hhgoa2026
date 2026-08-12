@@ -3,6 +3,7 @@
 import type { RefObject } from "react";
 import { Lotus, Sparkle, Waves } from "@/components/brand/ornaments";
 import { PassCardBack, PassCardFront, type PassFields } from "@/components/editor/PassCard";
+import type { Crop } from "@/lib/image/crop";
 import { EVENT, SHARE_HASHTAG, SITE_URL } from "@/lib/site";
 
 /**
@@ -53,12 +54,15 @@ function CardFace({ children }: { children: React.ReactNode }) {
 export function CaptureSurface({
   fields,
   photoUrl,
+  crop,
   shareId,
   sheetRef,
   ogRef,
 }: {
   fields: PassFields;
   photoUrl?: string | null;
+  /** The framing the user chose. Whatever is here is what the PNG will carry. */
+  crop?: Crop;
   /**
    * The id the pass is about to be published under, once the share flow has
    * claimed one. This is the only place it materially matters: whatever is on
@@ -89,7 +93,7 @@ export function CaptureSurface({
       >
         <div className="flex items-center gap-8">
           <CardFace>
-            <PassCardFront value={fields} photoUrl={photoUrl} shareId={shareId} />
+            <PassCardFront value={fields} photoUrl={photoUrl} crop={crop} shareId={shareId} />
           </CardFace>
           <CardFace>
             <PassCardBack />
@@ -134,7 +138,7 @@ export function CaptureSurface({
               transformOrigin: "top left",
             }}
           >
-            <PassCardFront value={fields} photoUrl={photoUrl} shareId={shareId} />
+            <PassCardFront value={fields} photoUrl={photoUrl} crop={crop} shareId={shareId} />
           </div>
         </div>
 

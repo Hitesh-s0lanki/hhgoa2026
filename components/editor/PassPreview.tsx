@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 export type { PassFields } from "@/components/editor/PassCard";
 import type { PassFields } from "@/components/editor/PassCard";
+import type { Crop } from "@/lib/image/crop";
 
 /**
  * The pass in hand: both faces of the card (PassCard.tsx) behind a pointer.
@@ -88,12 +89,15 @@ function useFitScale() {
 export function PassPreview({
   fields,
   photoUrl,
+  crop,
   shareId,
   className,
   interactive = true,
 }: {
   fields?: Partial<PassFields>;
   photoUrl?: string | null;
+  /** Passed straight through to the card's arch window. See [[lib/image/crop]]. */
+  crop?: Crop;
   /** Passed straight through to the card's QR code. See [[PassCardFront]]. */
   shareId?: string | null;
   className?: string;
@@ -136,7 +140,7 @@ export function PassPreview({
               aria-hidden="true"
               className="bg-brand-ink absolute inset-0 translate-x-2 translate-y-2 rounded-[1.4rem]"
             />
-            <PassCardFront value={value} photoUrl={photoUrl} shareId={shareId} />
+            <PassCardFront value={value} photoUrl={photoUrl} crop={crop} shareId={shareId} />
           </div>
         </div>
       </div>
@@ -210,7 +214,7 @@ export function PassPreview({
               )}
             >
               <div className="absolute inset-0 [backface-visibility:hidden]">
-                <PassCardFront value={value} photoUrl={photoUrl} shareId={shareId} />
+                <PassCardFront value={value} photoUrl={photoUrl} crop={crop} shareId={shareId} />
               </div>
               <div className="absolute inset-0 [transform:rotateY(180deg)] [backface-visibility:hidden]">
                 <PassCardBack />

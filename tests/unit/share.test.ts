@@ -3,6 +3,7 @@ import { createPassSchema, uploadedUrl } from "@/lib/share/schema";
 import { buildXCaption, buildXIntentUrl, resolvePostUrl } from "@/lib/share/x";
 
 const VALID = {
+  id: "k3f9x2m7qp1a",
   name: "Hitesh Solanki",
   role: "ML Engineer",
   stack: "Next.js · TS · AWS",
@@ -61,6 +62,32 @@ describe("createPassSchema", () => {
     // 28 is FIELD_LIMITS.name and the column width. The three must agree.
     expect(createPassSchema.safeParse({ ...VALID, name: "x".repeat(29) }).success).toBe(false);
     expect(createPassSchema.safeParse({ ...VALID, name: "x".repeat(28) }).success).toBe(true);
+  });
+
+  /*
+   * The id is minted in the browser so the card's QR code can encode
+   * `/share/<id>` before the card is rasterised — which makes it client input
+   * that becomes a URL on this domain. Anchored to the generator's exact
+   * alphabet and length, because "looks like an id" is not a check.
+   */
+  it("rejects an id that is not one this app mints", () => {
+    for (const id of [
+      "K3F9X2M7QP1A", // uppercase is not in the alphabet
+      "k3f9x2m7qp1", // eleven
+      "k3f9x2m7qp1ab", // thirteen
+      "k3f9-2m7qp1a", // the separators the alphabet deliberately excludes
+      "k3f9x2m7qp1a/../admin",
+      "k3f9x2m7qp1a\nx",
+      "",
+    ]) {
+      expect(createPassSchema.safeParse({ ...VALID, id }).success, id).toBe(false);
+    }
+  });
+
+  it("rejects a pass with no id at all", () => {
+    const withoutId: Record<string, unknown> = { ...VALID };
+    delete withoutId.id;
+    expect(createPassSchema.safeParse(withoutId).success).toBe(false);
   });
 
   it("rejects a pass with no card image", () => {
