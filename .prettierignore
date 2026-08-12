@@ -1,0 +1,15 @@
+.next
+node_modules
+out
+coverage
+playwright-report
+test-results
+package-lock.json
+public/branding
+
+# drizzle-kit owns these — it rewrites the snapshot and journal on every
+# generate, and reformatting them just produces a diff it will undo.
+drizzle/meta
+
+# the specification is hand-authored prose — leave its formatting alone
+docs

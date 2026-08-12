@@ -1,0 +1,305 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * The app ships one fixed palette — green ground, no light mode. Binding `dark:`
+ * to a `.dark` ancestor that is never added makes the `dark:` utilities baked
+ * into the shadcn components inert, rather than letting Tailwind's default
+ * `prefers-color-scheme` behaviour repaint half the UI on a dark-mode OS.
+ */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * The brand theme. Hexes mirror lib/brand/tokens.ts (docs/13-brand-identity.md);
+ * tests/unit/brand-tokens.test.ts fails if the two ever drift.
+ *
+ * The palette is flat — no gradients anywhere. hhgoa.com is flat vector
+ * throughout, so a gradient reads as a different brand.
+ */
+@theme {
+  --color-brand-green: #0b6839;
+  --color-brand-deep: #073f23;
+  --color-brand-yellow: #fee101;
+  --color-brand-pink: #ff0080;
+  --color-brand-cream: #fffbe8;
+  --color-brand-ink: #000000;
+}
+
+/*
+ * The shadcn contract, mapped to brand values (doc 13 ships this exact block).
+ * Nothing consumes it yet, but it means a future `shadcn add` lands on-brand
+ * instead of neutral grey.
+ */
+:root {
+  --background: #0b6839;
+  --foreground: #fffbe8;
+  --card: #073f23;
+  --card-foreground: #fffbe8;
+  --primary: #ff0080;
+  --primary-foreground: #000000;
+  --secondary: #fee101;
+  --secondary-foreground: #000000;
+  --muted: #073f23;
+  --muted-foreground: #fee101;
+  --accent: #ff0080;
+  --accent-foreground: #ffffff;
+  /*
+   * Every edge in this UI is a hard black rule, so `border` is ink rather than
+   * yellow — yellow survives as a *type* colour and as the focus ring.
+   */
+  --border: #000000;
+  --input: #fffbe8;
+  --ring: #fee101;
+
+  /* Square. The whole style rests on corners meeting at 90°. */
+  --radius: 0rem;
+
+  /*
+   * The palette has no red, and doc 13 permits exactly six colours. Pink is the
+   * alarm register here — it is already the highest-energy colour and is used
+   * for nothing structural. In practice this is near-dead: the app has no
+   * destructive actions, and recoverable errors render as inline notices (T-027).
+   */
+  --destructive: #ff0080;
+  --destructive-foreground: #000000;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --radius-ui: var(--radius);
+
+  /*
+   * Exposes the `:root` contract above to Tailwind, so `bg-primary`,
+   * `border-border`, `ring-ring` and friends inside components/ui/* resolve to
+   * brand values. Without this block the shadcn components compile but render
+   * colourless — the custom properties exist, the utilities do not.
+   */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /*
+   * shadcn sizes every corner off this scale, so flattening it here squares the
+   * `rounded-*` utilities already baked into components/ui/* — no component has
+   * to opt out one class at a time. `rounded-full` is a literal in Tailwind and
+   * is not reachable from here; those call sites were removed by hand.
+   */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+
+  /*
+   * The offset drop shadow, which is doing the work a border-radius and a blur
+   * would do in a softer system. Pure black, zero blur, no alpha — a blurred
+   * shadow reads as depth, this reads as a second sheet of paper.
+   *
+   * `-sm` is not "a smaller card": it is the *pressed* state of the base, which
+   * is why interactive components swap base → sm on hover rather than moving to
+   * a different colour.
+   */
+  --shadow-brutal-sm: 2px 2px 0 var(--color-brand-ink);
+  --shadow-brutal: 5px 5px 0 var(--color-brand-ink);
+  --shadow-brutal-lg: 8px 8px 0 var(--color-brand-ink);
+
+  /* Bowlby shouts, DM Mono whispers. Both loaded by next/font in layout.tsx. */
+  --font-display: var(--font-bowlby), Impact, "Haettenschweiler", sans-serif;
+  --font-body: var(--font-dm-mono), ui-monospace, "SF Mono", monospace;
+}
+
+@layer base {
+  html {
+    /* Green ground: form controls and scrollbars should render dark. */
+    color-scheme: dark;
+
+    /*
+     * The clip has to be here, not only on <body>.
+     *
+     * The hero and footer scenery (sun, palms) deliberately bleed past their
+     * boxes, and `overflow-x: clip` on the body was meant to absorb that. It
+     * does not: the viewport's own scrolling is governed by <html>, and with
+     * html left `visible` the page still scrolled sideways — measured at 36px
+     * on a 768px screen and 44px on a 320px one, which on a phone is a
+     * rubber-banding page that drifts off-centre when you scroll.
+     *
+     * `clip` rather than `hidden` so neither element becomes a scroll
+     * container, which would break `position: sticky` on the header. Pairing
+     * `clip` with `visible` on the other axis is legal and leaves normal
+     * vertical page scrolling alone — `visible` is only forced to `auto` when
+     * the other axis is neither `visible` nor `clip`.
+     */
+    overflow-x: clip;
+  }
+
+  body {
+    background-color: var(--color-brand-green);
+    color: var(--color-brand-cream);
+    font-family: var(--font-body);
+    font-weight: 500;
+  }
+
+  /*
+   * Every heading is the poster face, uppercase, set solid. Declared once here
+   * rather than as a `font-display uppercase leading-none` triplet on each
+   * heading — that triplet was the same three classes in six files, and a
+   * heading that forgets one is the thing that actually breaks the look.
+   *
+   * `label-caps` overrides the family back to mono, which is how the small
+   * eyebrow-style headings (footer columns, step titles) stay mono.
+   */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 0.95;
+    text-transform: uppercase;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-yellow);
+    color: var(--color-brand-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-yellow);
+    outline-offset: 3px;
+  }
+}
+
+/*
+ * Motion vocabulary. Every animation here moves a whole object — a card bobs,
+ * a palm sways, a ticker scrolls — never a colour or a blur, because the brand
+ * is flat sheets of paper and paper moves as a piece. All of it is switched
+ * off wholesale by the reduced-motion block at the end of this file.
+ *
+ * Keyframes animate `transform` while the utilities they land on use the
+ * individual `rotate`/`translate` properties, so `animate-bob` can sit on the
+ * same element as `rotate-2` without either clobbering the other.
+ */
+@theme {
+  --animate-bob: bob 6s ease-in-out infinite;
+  --animate-sway: sway 7s ease-in-out infinite;
+  --animate-marquee: marquee 30s linear infinite;
+  --animate-twinkle: twinkle 2.6s ease-in-out infinite;
+  --animate-ray-turn: ray-turn 40s linear infinite;
+  --animate-drift: drift 16s linear infinite;
+
+  @keyframes bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-9px);
+    }
+  }
+
+  @keyframes sway {
+    0%,
+    100% {
+      transform: rotate(-2.5deg);
+    }
+    50% {
+      transform: rotate(2.5deg);
+    }
+  }
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-100%);
+    }
+  }
+
+  @keyframes twinkle {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.35;
+      transform: scale(0.6);
+    }
+  }
+
+  @keyframes ray-turn {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes drift {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-100%);
+    }
+  }
+}
+
+/*
+ * The site's most recognisable typographic move: hard black offset, no blur.
+ * Bowlby is a much heavier face than the serif this replaced, so the offset is
+ * pushed out slightly — at the old 0.035em it disappeared into the stem.
+ */
+@utility text-offset {
+  text-shadow: 0.05em 0.06em 0 var(--color-brand-ink);
+}
+
+/*
+ * Mandir-style arch — the photo window from the event's builder pass.
+ * A pure border-radius so it costs nothing and clips a photo natively.
+ */
+@utility arch {
+  border-radius: 48% 48% 0.5rem 0.5rem / 34% 34% 0.5rem 0.5rem;
+}
+
+/*
+ * Uppercase mono, set bold and untracked, is the treatment for every label and
+ * button. The tracking went to zero with the typeface change: DM Mono already
+ * carries the extra sidebearing that 0.14em was faking on a narrower mono, and
+ * at 10px the two together read as spaced-out lettering rather than a label.
+ *
+ * The family is restated because `label-caps` is applied to headings too, where
+ * it has to win back over the h1–h4 display rule in the base layer.
+ */
+@utility label-caps {
+  font-family: var(--font-body);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
